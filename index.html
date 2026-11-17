@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoMarket Vital - Sistema de Gestión</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <!-- VISTA DE LOGIN SEGURO (MFA, RBAC, SSO, Biometría) -->
+        <div id="login-section" class="card">
+            <div class="logo-area">
+                <h1>EcoMarket Vital</h1>
+                <p>Sistema Integral de Gestión Ecológica y Base de Datos</p>
+            </div>
+
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="username">Usuario del Sistema</label>
+                    <input type="text" id="username" placeholder="ej. admin o cajero" required value="admin">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Contraseña Segura</label>
+                    <input type="password" id="password" placeholder="••••••••" required value="123456">
+                </div>
+
+                <div class="form-group">
+                    <label for="role">Control de Acceso basado en Roles (RBAC)</label>
+                    <select id="role">
+                        <option value="Administrador">Administrador (Acceso Total + PoLP)</option>
+                        <option value="Cajero">Cajero (Operaciones de Caja)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="mfa-code">Verificación de Múltiples Factores (MFA / 2FA)</label>
+                    <input type="text" id="mfa-code" placeholder="Código enviado (simulado: 8899)" required value="8899">
+                </div>
+
+                <button type="submit" class="btn">Iniciar Sesión Segura</button>
+                <button type="button" class="btn btn-secondary" onclick="simulateBiometric()">🔑 Autenticación Biométrica / WebAuthn</button>
+            </form>
+
+            <div class="security-badges">
+                <span class="badge">🛡️ RBAC Activo</span>
+                <span class="badge">🔒 PoLP Aplicado</span>
+                <span class="badge">🌐 SSO Integrado</span>
+            </div>
+        </div>
+
+        <!-- VISTA DE DASHBOARD Y CONSULTAS SQL (Oculta al inicio) -->
+        <div id="dashboard-section" class="card hidden">
+            <div class="dashboard-header">
+                <div>
+                    <h2>Panel de Control - EcoMarket Vital</h2>
+                    <p id="user-info" style="color: var(--text-muted); font-size: 13px;"></p>
+                </div>
+                <button class="btn" style="width: auto; padding: 8px 16px; background: #e74c3c;" onclick="logout()">Cerrar Sesión</button>
+            </div>
+
+            <h3 style="margin-bottom: 15px; font-size: 16px; color: var(--primary);">📊 Consultas SQL del Proyecto (1 al 10)</h3>
+            
+            <div class="query-grid">
+                <button class="query-btn" onclick="loadQuery(1)">1. Inventario Bajo</button>
+                <button class="query-btn" onclick="loadQuery(2)">2. Ventas por Método de Pago</button>
+                <button class="query-btn" onclick="loadQuery(3)">3. Facturación por Cliente (Join)</button>
+                <button class="query-btn" onclick="loadQuery(4)">4. Ventas por Sucursal (Join)</button>
+                <button class="query-btn" onclick="loadQuery(5)">5. Empleados y Sucursales (Join)</button>
+                <button class="query-btn" onclick="loadQuery(6)">6. Transacciones Recientes (Join)</button>
+                <button class="query-btn" onclick="loadQuery(7)">7. Ranking de Empleados</button>
+                <button class="query-btn" onclick="loadQuery(8)">8. Compra Cruzada (Subconsultas)</button>
+                <button class="query-btn" onclick="loadQuery(9)">9. Auditoría Crecimiento (CTE)</button>
+                <button class="query-btn" onclick="loadQuery(10)">10. Súper Compradores (HAVING)</button>
+            </div>
+
+            <div id="results-container" style="margin-top: 20px; overflow-x: auto;">
+                <p style="color: var(--text-muted); text-align: center; padding: 20px;">Selecciona una consulta arriba para visualizar los resultados estructurados de la base de datos.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simulación de datos estáticos precargados de tus consultas para demostración visual impecable
+        const queryData = {
+            1: [
+                { id_producto: 6, nombre: "Suero Facial Vitamina C", stock: 3, categoria: "Cosmética" },
+                { id_producto: 2, nombre: "Crema Facial Reafirmante", stock: 4, categoria: "Cosmética" },
+                { id_producto: 1, nombre: "Shampoo Orgánico de Sábila", stock: 6, categoria: "Cosmética" }
+            ],
+            2: [
+                { metodo_pago: "Efectivo", total_transacciones: 2 },
+                { metodo_pago: "Tarjeta", total_transacciones: 2 },
+                { metodo_pago: "Pago Móvil", total_transacciones: 1 },
+                { metodo_pago: "Zelle", total_transacciones: 1 }
+            ],
+            3: [
+                { nombre: "Sofía Valera", correo: "sofia@email.com", total_gastado: 110.0 },
+                { nombre: "Alejandro Rivas", correo: "alejandro@email.com", total_gastado: 110.7 },
+                { nombre: "Carmen de Armas", correo: "carmen@email.com", total_gastado: 33.0 },
+                { nombre: "Daniel Mendoza", correo: "daniel@email.com", total_gastado: 121.7 }
+            ],
+            4: [
+                { sucursal: "EcoMarket Central", ciudad: "Porlamar", total_productos_vendidos: 20 },
+                { sucursal: "EcoMarket Playa El Agua", ciudad: "Margarita", total_productos_vendidos: 19 },
+                { sucursal: "EcoMarket Sambil", ciudad: "Margarita", total_productos_vendidos: 19 }
+            ],
+            5: [
+                { empleado: "Carlos Rodríguez", departamento: "Ventas", salario: 550.0, sucursal: "EcoMarket Central" },
+                { empleado: "Ana Gómez", departamento: "Almacén", salario: 420.0, sucursal: "EcoMarket Central" },
+                { empleado: "Luis Martínez", departamento: "Ventas", salario: 680.0, sucursal: "EcoMarket Playa El Agua" },
+                { empleado: "María Silva", departamento: "Administración", salario: 850.0, sucursal: "EcoMarket Playa El Agua" },
+                { empleado: "Pedro Pérez", departamento: "Ventas", salario: 490.0, sucursal: "EcoMarket Sambil" },
+                { empleado: "Elena Sucre", departamento: "Administración", salario: 790.0, sucursal: "EcoMarket Sambil" }
+            ],
+            6: [
+                { id_venta: 6, fecha: "2026-11-12", producto: "Aceite de Coco Extra Virgen", cantidad: 4 },
+                { id_venta: 6, fecha: "2026-11-12", producto: "Crema Facial Reafirmante", cantidad: 2 },
+                { id_venta: 5, fecha: "2026-11-01", producto: "Arroz Integral Orgánico 1kg", cantidad: 10 }
+            ],
+            7: [
+                { nombre: "María Silva", departamento: "Administración", salario: 850.0, ranking_salario: 1 },
+                { nombre: "Elena Sucre", departamento: "Administración", salario: 790.0, ranking_salario: 2 },
+                { nombre: "Ana Gómez", departamento: "Almacén", salario: 420.0, ranking_salario: 1 },
+                { nombre: "Luis Martínez", departamento: "Ventas", salario: 680.0, ranking_salario: 1 },
+                { nombre: "Carlos Rodríguez", departamento: "Ventas", salario: 550.0, ranking_salario: 2 },
+                { nombre: "Pedro Pérez", departamento: "Ventas", salario: 490.0, ranking_salario: 3 }
+            ],
+            8: [
+                { id_cliente: 1, nombre: "Sofía Valera", correo: "sofia@email.com" },
+                { id_cliente: 4, nombre: "Daniel Mendoza", correo: "daniel@email.com" }
+            ],
+            9: [
+                { mes: "2026-09", total_ventas: 60.5, ventas_mes_anterior: null, porcentaje_crecimiento: 0 },
+                { mes: "2026-10", total_ventas: 101.2, ventas_mes_anterior: 60.5, porcentaje_crecimiento: 67.27 },
+                { mes: "2026-11", total_ventas: 132.0, ventas_mes_anterior: 101.2, porcentaje_crecimiento: 30.43 }
+            ],
+            10: [
+                { id_cliente: 1, nombre: "Sofía Valera", gasto_total: 110.0 },
+                { id_cliente: 2, nombre: "Alejandro Rivas", gasto_total: 110.7 },
+                { id_cliente: 4, nombre: "Daniel Mendoza", gasto_total: 121.7 }
+            ]
+        };
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const user = document.getElementById('username').value;
+            const role = document.getElementById('role').value;
+            const mfa = document.getElementById('mfa-code').value;
+
+            if(mfa !== "8899") {
+                alert("Código MFA / 2FA incorrecto. Use el código simulado: 8899");
+                return;
+            }
+
+            // Ocultar login, mostrar dashboard
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.remove('hidden');
+            document.getElementById('user-info').innerText = `Usuario: ${user} | Rol Autorizado: ${role} | Seguridad MFA & RBAC Verificada`;
+        }
+
+        function simulateBiometric() {
+            alert("✅ Autenticación biométrica exitosa por huella digital (WebAuthn simulado).");
+            document.getElementById('mfa-code').value = "8899";
+        }
+
+        function logout() {
+            document.getElementById('dashboard-section').classList.add('hidden');
+            document.getElementById('login-section').classList.remove('hidden');
+        }
+
+        function loadQuery(id) {
+            const data = queryData[id];
+            const container = document.getElementById('results-container');
+            
+            if(!data || data.length === 0) {
+                container.innerHTML = "<p>No hay datos disponibles para esta consulta.</p>";
+                return;
+            }
+
+            const keys = Object.keys(data[0]);
+            let html = `<table><thead><tr>`;
+            keys.forEach(key => {
+                html += `<th>${key.toUpperCase()}</th>`;
+            });
+            html += `</tr></thead><tbody>`;
+
+            data.forEach(row => {
+                html += `<tr>`;
+                keys.forEach(key => {
+                    html += `<td>${row[key] !== null ? row[key] : 'N/A'}</td>`;
+                });
+                html += `</tr>`;
+            });
+            html += `</tbody></table>`;
+
+            container.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
